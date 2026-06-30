@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Distributed URL Shortener</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 640px;
+    margin: 60px auto;
+    padding: 0 20px;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.5rem; }
+  form { display: flex; flex-direction: column; gap: 12px; margin: 24px 0; }
+  input, button {
+    font-size: 1rem;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #888;
+  }
+  button {
+    background: #2563eb;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; }
+  #result, #error { margin-top: 16px; padding: 12px; border-radius: 8px; display: none; }
+  #result { background: #ecfdf5; border: 1px solid #10b981; }
+  #error { background: #fef2f2; border: 1px solid #ef4444; }
+  code { word-break: break-all; }
+  .meta { font-size: 0.85rem; opacity: 0.7; margin-top: 24px; }
+</style>
+</head>
+<body>
+  <h1>🔗 Distributed URL Shortener</h1>
+  <p>Backed by multiple stateless app instances, Postgres, and Redis.</p>
+
+  <form id="shorten-form">
+    <input type="url" id="url" placeholder="https://example.com/a/very/long/url" required />
+    <div class="row">
+      <input type="text" id="alias" placeholder="custom alias (optional)" />
+      <input type="number" id="expires" placeholder="expires in days (optional)" min="1" />
+    </div>
+    <button type="submit">Shorten</button>
+  </form>
+
+  <div id="result"></div>
+  <div id="error"></div>
+
+  <p class="meta" id="health"></p>
+
+<script>
+const form = document.getElementById('shorten-form');
+const resultEl = document.getElementById('result');
+const errorEl = document.getElementById('error');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  resultEl.style.display = 'none';
+  errorEl.style.display = 'none';
+
+  const url = document.getElementById('url').value;
+  const alias = document.getElementById('alias').value.trim();
+  const expires = document.getElementById('expires').value.trim();
+
+  const body = { url };
+  if (alias) body.customAlias = alias;
+  if (expires) body.expiresInDays = Number(expires);
+
+  try {
+    const res = await fetch('/api/shorten', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Something went wrong.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    resultEl.innerHTML = `
+      <strong>Short URL:</strong> <code><a href="${data.shortUrl}" target="_blank">${data.shortUrl}</a></code><br/>
+      <strong>Stats:</strong> <a href="/api/stats/${data.shortCode}" target="_blank">/api/stats/${data.shortCode}</a>
+    `;
+    resultEl.style.display = 'block';
+  } catch (err) {
+    errorEl.textContent = 'Network error: ' + err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+// Show which backend instance served this page load, to demonstrate load balancing.
+fetch('/health').then(r => r.json()).then(d => {
+  document.getElementById('health').textContent =
+    `Served by worker #${d.workerId} (${d.hostname}, pid ${d.pid})`;
+}).catch(() => {});
+</script>
+</body>
+</html>

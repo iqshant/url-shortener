@@ -1,0 +1,19 @@
+{
+  "name": "distributed-url-shortener",
+  "version": "1.0.0",
+  "description": "A horizontally-scalable URL shortener: stateless Node instances behind nginx, Postgres for durable storage, Redis for caching + click buffering, Snowflake IDs for collision-free distributed code generation.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "pg": "^8.12.0",
+    "redis": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

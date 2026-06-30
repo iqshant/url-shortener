@@ -1,0 +1,101 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: shortener
+      POSTGRES_PASSWORD: shortener
+      POSTGRES_DB: shortener
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./app/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shortener -d shortener"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "6379:6379"
+
+  # Three identical, stateless application instances. Each gets a unique
+  # WORKER_ID so their Snowflake ID generators can never collide with each
+  # other, even though they're producing IDs completely independently.
+  app1:
+    build: ./app
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: shortener
+      PGPASSWORD: shortener
+      PGDATABASE: shortener
+      REDIS_URL: redis://redis:6379
+      PUBLIC_BASE_URL: http://localhost:8080
+      WORKER_ID: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app2:
+    build: ./app
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: shortener
+      PGPASSWORD: shortener
+      PGDATABASE: shortener
+      REDIS_URL: redis://redis:6379
+      PUBLIC_BASE_URL: http://localhost:8080
+      WORKER_ID: 2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app3:
+    build: ./app
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: shortener
+      PGPASSWORD: shortener
+      PGDATABASE: shortener
+      REDIS_URL: redis://redis:6379
+      PUBLIC_BASE_URL: http://localhost:8080
+      WORKER_ID: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - app1
+      - app2
+      - app3
+    restart: unless-stopped
+
+volumes:
+  pgdata:
